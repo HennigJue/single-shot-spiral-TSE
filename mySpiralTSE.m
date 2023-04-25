@@ -81,7 +81,7 @@
 tic
 dG=200e-6;
 seqname='TSE';
-plotflag='000101';
+plotflag='000111';
 initmode='no';
 
 %count0=20;
@@ -95,7 +95,7 @@ seqvar_mod='none';
 % seqvar_mod='TEall';
 % seqvar_mod='accvar';
 % seqvar_mod='fsvar';
-system = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
+system = mr.opts('MaxGrad', 20, 'GradUnit', 'mT/m', ...
     'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 100e-6, ...
     'rfDeadTime', 100e-6);
 try seq=mr.Sequence(system); end
@@ -116,14 +116,14 @@ for kseq=1:1
         %              'rfDeadTime', 100e-6);
         acq.slewfac=1;
         acq.gradfac=0.99;
-        B0=2.89;
+        B0=1.49;
         acqP.sat_ppm=-3.45;
         acqP.sat_freq=acqP.sat_ppm*1e-6*B0*system.gamma;
         
         segmode='fix';
         spmode='cont';
         scanmode='run';
-        fatsat='on';
+        fatsat='off';
         accmode='vd';
         T2prep='on';
         
@@ -141,7 +141,7 @@ for kseq=1:1
         acq.dninc=2;
         acq.accfac=4;
         
-        acqP.NSlices=11;
+        acqP.NSlices=1;
         acqP.TRfac=[1 1 3 4 6 8];
         acqP.MTfac=1;
         SLfac=1;
@@ -170,7 +170,7 @@ for kseq=1:1
             acqP.TR=10e-3;
             %%
             acqP.TE=10e-3;
-            acqP.TEprep=200e-3;
+            acqP.TEprep=10e-3;
             acqP.nTE=1;
             if(strcmp(T2prep,'off'))
                 acqP.TEeff=acqP.nTE*acqP.TE;
@@ -196,7 +196,7 @@ for kseq=1:1
             segP.tExwd=segP.tEx+system.rfRingdownTime+system.rfDeadTime;
             segP.tRef=2e-3;
             segP.tRefwd=segP.tRef+system.rfRingdownTime+system.rfDeadTime;
-            segP.tSp=1.05e-3;
+            segP.tSp=1.5e-3;
             segP.tSpex=0.5*(acqP.TE-segP.tExwd-segP.tRefwd);
             segP.t1=1e-3;
             segP.t2=0.5e-3;
@@ -204,8 +204,8 @@ for kseq=1:1
             segP.TEprep=0.9e-3;
             %segP.GSfac=0.988043;
             segP.GSfac=1;
-            segP.GXfac=3;
-            segP.GYfac=2;
+            segP.GXfac=1;
+            segP.GYfac=1;
             
         end
         %%
@@ -412,7 +412,7 @@ for kseq=1:1
                 seg.ikseg(2:2:end,:)=temp(2:2:end,:);
             end
             
-            if(plotflag(3)=='1'),
+            if(plotflag(3)=='1')
                 figure
                 axlim=max(spiral.kStart,spiral.kWidth/2);
                 axis([-axlim axlim -axlim axlim])
@@ -511,6 +511,7 @@ for kseq=1:1
         GRtrim = mr.makeTrapezoid('x',system,'area',2*spiral.kStart,'duration',acqP.TE-GSref.flatTime-2*segP.tSp,'riseTime',dG);
         
         GRspoi_x=mr.makeTrapezoid('x',system,'area',(segP.GXfac-1)*spiral.kStart,'duration',GSspr.riseTime+segP.TEprep,'riseTime',dG);
+        GRspoi_xs=mr.makeTrapezoid('x',system,'area',(segP.GXfac-1)*spiral.kStart,'duration',GSspr.riseTime+segP.TEprep,'riseTime',dG);
         GRspoi_y=mr.makeTrapezoid('y',system,'area',segP.GYfac*spiral.kStart,'duration',GSspr.riseTime+segP.TEprep,'riseTime',dG);
         
         % and filltimes
@@ -585,6 +586,7 @@ for kseq=1:1
                     seq.addBlock(GS7p1,GRspoi_x,GRspoi_y);
                     seq.addBlock(GS4,rfref);
                     %seq.addBlock(GS5p1,GRspoi_x,GRspoi_y);
+                    %seq.addBlock(GS5p1,GRspoi_y);
                     seq.addBlock(GS5p1);
                     seq.addBlock(delayTE2);
                     %seq.addBlock(GRref);
@@ -624,13 +626,13 @@ for kseq=1:1
                     else
                         %% initial gradient
                         segS.tSp=GSspr.riseTime+GSspr.flatTime+GSspr.fallTime+seg.i1(k)*system.gradRasterTime;
-                        if((m==1)&&strcmp(T2prep,'on')), kBegin1=[-3*spiral.kStart+dKA(k,1) -segP.GYfac*spiral.kStart];
+                        if((m==1)&&strcmp(T2prep,'on')), kBegin1=[-segP.GXfac*spiral.kStart+dKA(k,1) -segP.GYfac*spiral.kStart];
                         else
                             kBegin1=[-spiral.kStart+dKA(k,1) 0];
                         end
                         kEnd1=[kt(seg.ikseg(k,1),1) kt(seg.ikseg(k,1),2)+dKA(k,2)];
                         GStart=[0 0];
-                        if(strcmp(spmode,'cont')|(k~=2*floor(k/2))),
+                        if(strcmp(spmode,'cont')||(k~=2*floor(k/2))),
                             GDest=[Gsp(seg.ikseg(k,1),1) Gsp(seg.ikseg(k,1),2)];
                         end
                         if(strcmp(spmode,'alt')&&(k==2*floor(k/2)))
@@ -863,7 +865,7 @@ for kseq=1:1
         disp(s(1:300))
         %% plot gradients etc
         if(plotflag(6)=='1')
-            fig=seq.plot('TimeRange',[0 0.3],'timeDisp','ms');
+            fig=seq.plot('TimeRange',[0 0.03],'timeDisp','ms');
             %fig=seq.plot('TimeRange',[0 acqP.TEprep+acqP.TE+acq.readoutTime+20e-3],'timeDisp','ms');
         end
         %
