@@ -95,7 +95,7 @@ seqvar_mod='none';
 % seqvar_mod='TEall';
 % seqvar_mod='accvar';
 % seqvar_mod='fsvar';
-system = mr.opts('MaxGrad', 20, 'GradUnit', 'mT/m', ...
+system = mr.opts('MaxGrad', 30, 'GradUnit', 'mT/m', ...
     'MaxSlew', 150, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 100e-6, ...
     'rfDeadTime', 100e-6);
 try seq=mr.Sequence(system); end
@@ -203,9 +203,9 @@ for kseq=1:1
             segP.fspS=0.5;
             segP.TEprep=0.9e-3;
             %segP.GSfac=0.988043;
-            segP.GSfac=1;
+            segP.GSfac=2;
             segP.GXfac=1;
-            segP.GYfac=1;
+            segP.GYfac=0;
             
         end
         %%
