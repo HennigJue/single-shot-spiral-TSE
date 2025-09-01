@@ -8,7 +8,7 @@
 % zoom: relative size of image to matrix
 % ninc: image increment (default=1)
 
-function bigx=im_mosaic(x,ny,nx,zoom,ifac,rsize,scale);
+function bigx=im_mosaic(x,ny,nx,zoom,~,~,scale)
 
 six=size(x);
 if(nargin<7),
@@ -63,12 +63,12 @@ for kx=1:nx,
       try, 
           xtemp=squeeze(x(:,:,:,kf));
           locsc=max(abs(xtemp(:)));
-          scfac=1;
-          %scfac=globsc/locsc;
+         scfac=1;
+         %scfac=globsc/locsc;
           if(scfac>500), scfac=1; end;
-     %     scfac=1;
-     %     scfac=ifac(kf)
-         % xtemp=xtemp./max(xtemp(:));
+         % scfac=1;
+        % scfac=ifac(kf)
+         % xtemp=xtemp./max(xtemp(:));bigx
           
 %           if(scale==1),
 %           imax=max(xtemp(:))

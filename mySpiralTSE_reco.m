@@ -9,22 +9,6 @@ disp('select rawdata')
 [fnr, pnr] = uigetfile('*.dat', 'Select rawdata files','MultiSelect', 'on');
 if(iscell(fnr)), nir=numel(fnr); else nir=1; fnr={fnr}; end
 %%
-clear fns
-disp('select sequence(s)')
-[fns, pns] = uigetfile('*.seq', 'Select protocol files','MultiSelect', 'on');
-if(iscell(fns)), nip=numel(fns); else nip=1; fns={fns}; end
-%
-%pnp=pns;
-for k=1:length(fns)
-    temp=cell2mat(fns(k));
-    fnp(k)={strcat('p',temp(4:end-3),'mat')};
-end
-%%
-for k=1:length(fas)
-    temp=cell2mat(fas(k));
-    fnp(k)={strcat('p',temp(1:end-3),'mat')};
-end
-%%
 disp('select protocol(s)')
 [fnp, pnp] = uigetfile('*.mat', 'Select protocol files','MultiSelect', 'on');
 if(iscell(fnp)), nip=numel(fnp); else nip=1; fnp={fnp}; end
@@ -40,29 +24,19 @@ if(iscell(fnp)), nip=numel(fnp); else nip=1; fnp={fnp}; end
 %for kim=1:length(fnp),
 mp=0
 clear imall
-for kim=1:3
+for kim=1:length(fnp)
     mp=mp+1;
-%     pnp=pnp0;
-%     fnp=fnp0;
     cd(pnp)
     segname=cell2mat([fnp(:,1)]);
-    %segname='pTSE_T1var_off_10_10_125_144_1';
-%     segname=cell2mat(protname(2,kim));
-     %segname=strcat('p',segname)
- %   segname='pTSE_T1var_on_10_20_125_144';
     load(segname)
-    %acqP.necho=22;
     %%
     cd(pnr)
     rawname=cell2mat(fnr(:,kim))
-    %rakwname=cell2mat(protname(1,kim));
     twix_obj = mapVBVD(rawname);
-    %rawdata =double(twix_obj.image.unsorted());
-    rawdata = double(twix_obj{2}.image.unsorted());
+    rawdata =double(twix_obj.image.unsorted());
+    %rawdata = double(twix_obj{2}.image.unsorted());
     %%
-        %
-    nex=acqP.nex;
-    %nex=1;
+    nex=acqP.nex;    
     nslices=acqP.NSlices;
     necho=acqP.necho;
     ktraj_adc0=ktraj_adc;
@@ -80,25 +54,17 @@ for kim=1:3
     %[ktraj_adc]=shift_ktraj_r(ktraj_adc0,[2.01,1.37,0],0);
     [ktraj_adc]=shift_ktraj_r(ktraj_adc,[0.0,0.0,0],0);
     ktraj_adc=reshape(ktraj_adc,[3,acq.nadc,necho,nslices]);
-    %close all
+    
     %for kex=1:6,
     % Define FOV and resolution
     [nadc,nc,nacq]=size(rawdata);
-    
-    %
     slOrder=acqP.sltemp;
-    
     
     % stitch trajectory
     plotflag='1011';
     Nx=256;
     Ny=Nx;
-    
-    %
-    if(nslices>1)
-        %ktraj_adc=squeeze(ktraj_adc(:,:,:,ksl));
-    end
-    
+       
     if(strcmp(spmode,'alt')),
         ktemp=0*ktraj_adc;
         ktemp(:,:,acqP.PEind)=ktraj_adc;
@@ -108,48 +74,13 @@ for kim=1:3
     %
     [ktacq,indkt,ksel]=spiral_stitch_nom(ktraj_adc(:,:,:,1),seg.i1,seg.nkseg,acq.nadc,necho,acqP.nTE,acq.dninc,acq.accfac);
     nTE=acqP.nTE;
-    %[ktacq,indkt,ksel]=spiral_stitch(ktraj_adc(:,:,:,1),acq.nadc,necho,nTE);
-    
+     
     %
     close
-    % if(strcmp(spmode,'alt')),
-    %     ksel(:,2:2:end)=ksel(end:-1:1,2:2:end);
-    % end
-    kselr=repmat(ksel,[1 1 nc]);
+     kselr=repmat(ksel,[1 1 nc]);
     
-    % if(plotflag(1)=='0'), close; end
-    % if(plotflag(2)=='1');figure;plot(ktraj_adc(1,indk),ktraj_adc(2,indk));end
-    %
     ktraj_sp=ktacq;
-    %
-%     if(strcmp(scanmode,'trim')),
-%         scanmode
-%         ktraj_adc(:,1:acq.nadc)=ktraj_adc(:,necho*acq.nadc+1:necho*acq.nadc+acq.nadc);
-%         ktraj_sp=ktraj_adc(1:2,indk);
-%         m=1;
-%         raw_echo=rawdata_ch1(:,m);
-%   %   
-%         m=m+nsl+1;
-%         %for k=2:1,
-%         for k=2:nsl,
-%             raw_echo=[raw_echo rawdata_ch1(:,m)];
-%             m=m+nsl+1;
-%         end
-%         if(plotflag(3)=='1'),
-%             figure
-%             plot(real(raw_echo(:)))
-%             hold on
-%             plot(imag(raw_echo(:)),'r-')
-%         end
-%         acqP.nechomax=floor(ntot/2);
-%         echomax=raw_echo(acqP.nechomax,:);
-%         if(plotflag(4)=='1'),
-%             figure
-%             plot(abs(raw_echo(:)))
-%             hold on
-%             plot([acqP.nechomax:acq.nadc:nsl*acq.nadc],abs(echomax)','ro')
-%         end
-%     end
+    
    sikt=size(ktraj_sp);
     % here we expect Nx, Ny, deltak to be set already
     % and rawdata ktraj_adc loaded (and having the same dimensions)
@@ -182,7 +113,6 @@ for kim=1:3
         imsos1=zeros([2*Nx 2*Ny nslices]);
         for nsl=1:nslices,
         %% 
-        %for nsl=1:1,
             rawdata_sl=double(squeeze(rawdata0(:,:,:,nsl)));
             signorm=ones([necho 1]);
             if(strcmp(recnorm,'y'))
@@ -219,15 +149,6 @@ for kim=1:3
             
             
             %compute density weightening
-            %w=abs(ktr).*abs(cat(1,diff(abs(ktr),1),zeros(1,size(ktr,2))));
-            %
-            %     w=abs(gradient(ktr));
-            %     w=w/max(w(:));
-            %     w(11500:11510)=w(11496);
-            %
-            
-            %
-            %ktraj_sp=ktraj(1:2,:);
             ktr=-1i*(ktraj_sp(1,:))'+ktraj_sp(2,:)';
             ktr=ktr/(10*0.24/acqP.fov*Nx);
             nkp=length(ktraj_sp);
@@ -238,12 +159,7 @@ for kim=1:3
             w(kz:end)= ww(1:end-kz+1);
             w(1:kz-1)=ww(end-kz+2:end);
             w=w./max(w(:))+0.01;
-            %w=0*w+1;
-            %w=interp(w,4);
-            %
-            %     w(ind)=max(w(:))./w;
-            %
-            %
+              %
             % % % perform SVD coil compression
             % % disp('perform coil compression at  5\% tollerance.')
             % % D = reshape(data,size(data,1)*size(data,2),size(data,3));
@@ -266,45 +182,26 @@ for kim=1:3
             GFFT1 = NUFFT(ktr,w, [0,0] , mat);
             im = GFFT1'*(reshape(raw_sp,[length(w) 1 nc]).*repmat(sqrt(w),[1,1,nc]));
             toc
-            %
-            %         figure
-            %         imagesc(abs(sos(im))), colormap(gray);
-            %        axis square
+           
             imsos(:,:,nsl)=abs(sos(im));
-         %   imcoils(:,:,:,nsl)=im;
-            %raw_sp_all(:,:,nsl,mp)=raw_sp;
-             %figure; imagesc(imsos(:,:,6)), colormap(gray);
+        
             
         end
         %%
         imsos1=0*imsos;
         [ind,indr]=sort(slOrder);
         for k=1:nslices
-            %imsos1(:,:,k)=imsos(:,:,indr(k));
-            imsos1(:,:,k)=flipud(permute(squeeze(imsos(:,:,indr(k))),[2 1]));
+             imsos1(:,:,k)=flipud(permute(squeeze(imsos(:,:,indr(k))),[2 1]));
         end
         imsos1=imsos1(:,:,nslices:-1:1);
         %%
- %       for k=1:nslices,
-%             imsos1(:,:,slOrder(k))=imsos(:,:,k);
-        %    imcoils1(:,:,:,slOrder(k))=imcoils(:,:,:,k);
-  %          raw_sp_all(:,:,slOrder(k),mp)=raw_sp_all(:,:,k,mp);
-%         end
-        mat(3)=1;
+         mat(3)=1;
         kcount=sprintf('%02d',kim);
         save(strcat('paramTSE',kcount),'ktraj','ksel','necho','nslices','signorm','w','slOrder','mat');
-      %  imcoila(:,:,:,:,kim,kex)=imcoils1;
-     imall(:,:,:,mp)=imsos1;
+        imall(:,:,:,mp)=imsos1;
      eval(strcat('imall_',num2str(kim),'=imsos1;'));
-        %eval(strcat('im_',num2str(kim),'_',num2str(r1),'_',num2str(r2),'=imsos1;'));
-       %bigx=im_mosaic(imsos1,3,5,150);
-       %bigx=im_mosaic(imsos1(:,:,:),2,6,150);
-       %figure; imagesc(imsos(:,:,6)), colormap(gray);
-%        eval(strcat('imall_',num2str(kim),'=imsos1;'))
-% save(strcat('im',seqname),strcat('imall_',num2str(kim)));
-
-
-
+     bigx=im_mosaic(imsos1(:,:,:,mp),2,6,150);
+       
 
     end
 end

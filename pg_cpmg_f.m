@@ -87,7 +87,7 @@ x=1:(k-1);
 
 if (plotflag==1),
 figure 
-plot(x,squeeze(abs(mph(2,1,1:k-1)))),axis([0,k-2,0,1]),xlabel('# of echoes'),ylabel('intensity');
+plot(x,squeeze(abs(mph(2,1,1:k-1))),'o-'),axis([0,k-2,0,1]),xlabel('# of echoes'),ylabel('intensity');
 end;
 
 if (plotflag==2),
@@ -95,22 +95,22 @@ figure
 set(gcf,'Position',[200 0 800 300]);
 subplot(1,2,1), plot(x,squeeze(abs(mph(2,1,1:k-1)))),axis([0,k-2,0,1]),xlabel('# of echoes'),ylabel('intensity');
 subplot(1,2,2), imagesc(abs(pg(:,1:(k-2),1)),[-0.5 1]),colormap('jet');
-end;
+end
 
-if (plotflag==3),
+if (plotflag==3)
 figure
 set(gcf,'Position',[200 0 1200 300]);
 subplot(1,3,1), plot(x,squeeze(abs(mph(2,1,1:k-1)))),axis([0,k-2,0,1]),xlabel('# of echoes'),ylabel('intensity');
 subplot(1,3,2), imagesc(abs(pg(:,1:(k-2),1)),[-0.5 1]),colormap('jet');
 subplot(1,3,3), imagesc(abs(pg(:,1:(k-2),2)),[-0.5 1]),colormap('jet');
 
-end;
+end
 
 
 if (plotflag==4),
 figure
 %set(gcf,'Position',[200 0 200 400]);
-imagesc(real(pg(:,1:(k-2),2)),[-0.5 1]),colormap(jet);;
+imagesc(real(pg(:,1:(k-2),1)),[-0.5 1]),colormap(jet);;
 % ,colormap('gray');
 end;
 

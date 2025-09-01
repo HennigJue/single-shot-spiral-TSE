@@ -71,13 +71,21 @@
 %       4   :   x-y-trajectory during readout(red) and total trajectory (blue)
 %       5   :   x-z-trajectory during readout(red) and total trajectory (blue)
 %       6   :   sequence
+%
+%   
+%   PARAMETERS:
+%    acqP.nPrep: sets dummy echoes at the beginning of the echotrain. If >0, data acquisition starts with the nTE-th echo
+%
+%
+%
+
 %% Instantiation and gradient limits
 % The system gradient limits can be specified in various units _mT/m_,
 % _Hz/cm_, or _Hz/m_. However the limits will be stored internally in units
 % of _Hz/m_ for amplitude and _Hz/m/s_ for slew. Unspecificied hardware
 % parameters will be assigned default values.
 
-
+clear acqP acq
 dG=100e-6;
 seqname='TSE';
 plotflag='000111';
@@ -97,6 +105,8 @@ seqvar_mod='none';
 system = mr.opts('MaxGrad',35, 'GradUnit', 'mT/m', ...
     'MaxSlew', 170, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 100e-6, ...
     'rfDeadTime', 100e-6);
+acqP.sFac=1;
+acqP.gFac=0.99;
 B0=3;
 try seq=mr.Sequence(system); end
 warning('OFF', 'mr:restoreShape')
@@ -134,8 +144,8 @@ for kseq=1:nseq
         if(strcmp(scanmode,'trim')), seqname=strcat(seqname,'_',segmode,'_',spmode,'_trim'); end
         acqP.fov=240e-3;
         spiral.Ninx=120;
-        spiral.kOffset=50;
-        spiral.Nin=1;
+        spiral.kOffset=0;
+        spiral.Nin=0.7;
         spiral.Nout=1.4;
         acq.dninc=2;
         acq.accfac=4;
@@ -165,12 +175,13 @@ for kseq=1:nseq
             end
         end
         %%
-        acqP.dummy=1;
-        acqP.flipref=60; acqP.flipflag=2;
-        acqP.TR=500e-3;
+        acqP.dummy=1; % dummy scan if zero
+        acqP.nPrep=2;
+        acqP.flipref=40; acqP.flipflag=3;
+        acqP.TR=1000e-3;
         %%
         acqP.TE=10e-3;
-        acqP.TEprep=40e-3;
+        acqP.TEprep=30e-3;
         acqP.nTE=1;
         if(strcmp(T2prep,'off'))
             acqP.TEeff=acqP.nTE*acqP.TE;
@@ -187,12 +198,14 @@ for kseq=1:nseq
         segP.tSp=1.05e-3;
         segP.tSpex=0.5*(acqP.TE-segP.tExwd-segP.tRefwd);
         segP.t1=1e-3;
-        segP.t2=0.5e-3;
-        segP.fspS=0.5;
-        segP.TEprep=0.9e-3;
-        segP.GSfac=1;
-        segP.GXfac=1;
-        segP.GYfac=1;
+        segP.t2=0e-3;
+        segP.fspS=1.5;
+        segP.TEprep=1e-3;
+        
+        acq.tD=0;   % Duration of diffusion gradient
+        acq.GDx=10;    % Diffusion gradient amplitudes in mT/m
+        acq.GDy=10;
+        acq.GDs=10;
 
     end
     %%
@@ -211,6 +224,7 @@ for kseq=1:nseq
         end
         seqname=testname;
     end
+    if(acq.tD==0),     acq.GDs=0;    acq.GDx=0;    acq.GDy=0; acq.tD=2*dG; end
     %%
 
     acq.readoutTime = acqP.TE-2*segP.tSp-segP.tRefwd-2*20e-6;
@@ -236,7 +250,7 @@ for kseq=1:nseq
 
     acqP.flipex=90*pi/180;
     [rfex, gz] = mr.makeSincPulse(acqP.flipex,system,'Duration',segP.tEx,...
-        'sliceThickness',acqP.sliceThickness,'apodization',0.5,'timeBwProduct',4,'maxSlew',system.maxSlew*4);
+        'sliceThickness',acqP.sliceThickness,'apodization',0.5,'timeBwProduct',4,'maxSlew',system.maxSlew*4,'use','excitation');
     GSex = mr.makeTrapezoid('z',system,'amplitude',gz.amplitude,'FlatTime',segP.tExwd,'riseTime',dG);
     % plotPulse(rfex,GSex);
 
@@ -265,7 +279,7 @@ for kseq=1:nseq
     rf_fst=8e-3;
     if (B0<2), rf_fst=1e-5*floor(1e5*10e-3*1.5/B0); end
     rf_fs = mr.makeGaussPulse(110*pi/180,'system',system,'Duration',2.5e-3,...
-        'bandwidth',abs(acqP.sat_freq),'freqOffset',acqP.sat_freq);
+        'bandwidth',abs(acqP.sat_freq),'freqOffset',acqP.sat_freq,'use','other');
     gz_fs = mr.makeTrapezoid('z',system,'delay',mr.calcDuration(rf_fs),'Area',1/1e-4); % spoil up to 0.1mm
     %figure; plot(rf_fs.t,rf_fs.signal)
     %%
@@ -284,20 +298,21 @@ for kseq=1:nseq
     acq.nadc=acq.accfac*round((acq.readoutTime)/system.gradRasterTime);
     adc = mr.makeAdc(acq.nadc,'Duration',acq.readoutTime, 'Delay', 20e-6);%,'Delay',GRacq.riseTime);
 
+
+   
     % use spiral tools from Hargreaves to calculate spiral gradients
 
     % convert pulseq-parameters to Hargreaves units
     %%
 
     gamma = 42.576e6;
-    smax = acq.slewfac*100*system.maxSlew/gamma;	 % 150 T/m/s
-    gmax = acq.gradfac*100*system.maxGrad/gamma;	 % G/cm
+    smax = acq.slewfac*acqP.sFac*100*system.maxSlew/gamma;	 % 150 T/m/s
+    gmax = acq.gradfac*acqP.gFac*100*system.maxGrad/gamma;	 % G/cm
 
     T = system.gradRasterTime;	 % Seconds
 
-    % Interleaves
-    %Fcoeff = [acqP.fov*100 -acqP.fov*50] ;	% acqP.fov decreases linearly from 24 to 12cm.
-    Fcoeff = acqP.fov*100 ;
+    % Interleaves    
+    Fcoeff = acqP.fov*100 ;          % acqP.fov decreases linearly from 24 to 12cm.
     if(strcmp(accmode,'vd')), Fcoeff=[acqP.fov*100 -acqP.fov*100/(spiral.Nout)]; end
 
     res=100*acqP.fov/spiral.Ninx;
@@ -458,14 +473,14 @@ for kseq=1:nseq
 
 
     GS7p1times=[0 GSspr.riseTime GSspr.riseTime+segP.TEprep GSspr.riseTime+segP.TEprep+GSspr.fallTime];
-    GS7p1amp=[0 segP.GSfac/2*GSspr.amplitude segP.GSfac/2*GSspr.amplitude GSref.amplitude];
+    GS7p1amp=[0 1/2*GSspr.amplitude 1/2*GSspr.amplitude GSref.amplitude];
     GS7p1= mr.makeExtendedTrapezoid('z','times',GS7p1times,'amplitudes',GS7p1amp);
 
     GSarea=calcArea(GS4)/2+calcArea(GS7);
     GSprep_area1=calcArea(GS2)/2+calcArea(GS3p1)+calcArea(GS7p1)+calcArea(GS4)/2;
     GSprep_area2=calcArea(GS4)/2+calcArea(GS5p1);
-    GS3p2=mr.makeTrapezoid('z',system,'area',segP.GSfac*GSarea-GSprep_area1,'duration',segP.t1,'riseTime',dG);
-    GS5p2=mr.makeTrapezoid('z',system,'area',segP.GSfac*GSarea-GSprep_area2,'duration',(acqP.TE-2*segP.tSp-segP.tRefwd)/2,'riseTime',dG);
+    GS3p2=mr.makeTrapezoid('z',system,'area',GSarea-GSprep_area1,'duration',segP.t1,'riseTime',dG);
+    GS5p2=mr.makeTrapezoid('z',system,'area',GSarea-GSprep_area2,'duration',(acqP.TE-2*segP.tSp-segP.tRefwd)/2,'riseTime',dG);
 
     % and now the readout gradient....
     GRpre_s = mr.makeTrapezoid('x',system,'area',spiral.kStart,'duration',segP.t1,'riseTime',dG);
@@ -474,9 +489,7 @@ for kseq=1:nseq
     GRref = mr.makeTrapezoid('x',system,'area',spiral.kStart,'duration',acq.readoutTime,'riseTime',dG);
     GRtrim = mr.makeTrapezoid('x',system,'area',2*spiral.kStart,'duration',acqP.TE-GSref.flatTime-2*segP.tSp,'riseTime',dG);
 
-    GRspoi_x=mr.makeTrapezoid('x',system,'area',(segP.GXfac-1)*spiral.kStart,'duration',GSspr.riseTime+segP.TEprep,'riseTime',dG);
-    GRspoi_xs=mr.makeTrapezoid('x',system,'area',(segP.GXfac-1)*spiral.kStart,'duration',GSspr.riseTime+segP.TEprep,'riseTime',dG);
-    GRspoi_y=mr.makeTrapezoid('y',system,'area',segP.GYfac*spiral.kStart,'duration',GSspr.riseTime+segP.TEprep,'riseTime',dG);
+    GRspoi_y=mr.makeTrapezoid('y',system,'area',spiral.kStart,'duration',GSspr.riseTime+segP.TEprep,'riseTime',dG);
 
     % and filltimes
     segS.tEx=GS1.shape_dur+GS2.shape_dur+GS3.shape_dur;
@@ -491,23 +504,61 @@ for kseq=1:nseq
         disp(strcat('TRfill : ',num2str(1000*TRfill),' ms'));
     end
     delayTR = mr.makeDelay(TRfill);
+%% Filltimes
     if(strcmp(T2prep,'on'))
         TEfill1=acqP.TEprep/2-GS2.shape_dur/2-GS3p1.shape_dur-segP.t1-GS7p1.shape_dur-GS4.shape_dur/2;
-        TEfill2=segP.t2+acqP.TEprep/2+acqP.TE/2-(segP.tRef+GS5p1.shape_dur+segP.tSp+acqP.TE-2*segP.tSp-segP.tRefwd+GS7.shape_dur);
+        TEfill2=segP.t2+acqP.TEprep/2-acqP.TE/2-GS5p1.shape_dur-GS4.shape_dur+2*dG;
+        
+    end
+    if(acq.tD>TEfill2),
+        disp(strcat('Diffusion gradient too long, duration set to :',num2str(TEfill1*1000),'ms'));
+        acq.tD=TEfill2-1e-4;
+    end
+    TEfill1=acqP.TEprep/2-GS2.shape_dur/2-GS3p1.shape_dur-segP.t1-GS7p1.shape_dur-GS4.shape_dur/2;
+        TEfill2=segP.t2+acqP.TEprep/2-acqP.TE/2-GS5p1.shape_dur-GS4.shape_dur+2*dG;
         delayTE1 = mr.makeDelay(TEfill1);
         delayTE2 = mr.makeDelay(TEfill2);
-    end
+%TEfill1=acqP.TEprep/2-GS2.shape_dur/2-GS3p1.shape_dur-segP.t1-GS7p1.shape_dur-GS4.shape_dur/2;
+ %       TEfill2=segP.t2+acqP.TEprep/2-acqP.TE/2-GS5p1.shape_dur-GS4.shape_dur+2*dG;
+     %% Diffusion gradient
+
+    GDx=mr.makeTrapezoid('x',system,'duration',acq.tD,'Amplitude',acq.GDx*system.gamma/1000);
+    GDy=mr.makeTrapezoid('y',system,'duration',acq.tD,'Amplitude',acq.GDy*system.gamma/1000);
+    GDs=mr.makeTrapezoid('z',system,'duration',acq.tD,'Amplitude',acq.GDs*system.gamma/1000);
+    GDx.delay=TEfill1-TEfill2;
+    GDy.delay=TEfill1-TEfill2;
+    GDs.delay=TEfill1-TEfill2;
+    GDxr=GDx; GDxr.delay=TEfill2-acq.tD;
+    GDyr=GDy; GDyr.delay=TEfill2-acq.tD;
+    GDsr=GDs; GDsr.delay=TEfill2-acq.tD;
+
     % and flip angles
     acqP.rflip=acqP.flipref+zeros([1 acqP.necho]);
-    if(acqP.flipflag==1),  acqP.rflip(1)=90+acqP.flipref/2;end
-    if(acqP.flipflag==2)
-        [rf,~] = fliptraps(acqP.flipref,(acqP.nrep+1)*acqP.necho,6,'opt',0,2,0,acqP.flipref,acqP.flipref,[6 5 5 acqP.necho]);
-        %if(strcmp(T2prep,'off')), rf=[180 rf]; end
-        %rf=[180 rf];
-        rf=rf(1:acqP.nrep*acqP.necho); pow=sum(rf.^2)/sum((0*rf+180).^2);
-        disp(strcat('rel. power :',num2str(pow)));
-        acqP.rflip=rf(1:acqP.nrep*acqP.necho);
+    k0eff=max(acqP.nTE,2);
+    %%
+    if(acqP.flipflag==0)
+        disp(acqP.flipflag)
+        acqP.flip=acqP.flipref+zeros([1 acqP.necho]); rf=acqP.flip; end
+
+    if(acqP.flipflag==1),  acqP.flip(1)=90+acqP.flipref/2;end
+    %if(acqP.flipflag>1)
+    if(acqP.flipflag==2), flipend=acqP.flipref;
+        [rf,~] = TRAPS_flip(acqP.flipref,(acqP.nrep)*acqP.necho,k0eff,'opt',2,acqP.flipref,flipend,[k0eff k0eff k0eff acqP.necho]);
     end
+
+    if(acqP.flipflag==3), flipend=60;
+        [rf,~] = TRAPS_flip(acqP.flipref,(acqP.nrep)*acqP.necho,k0eff,'none',2,acqP.flipref,flipend,[k0eff k0eff k0eff acqP.necho]);
+        rf(1)=(180+acqP.flipref)/2;
+    end
+
+    if(acqP.flipflag==4), flipend=60;
+        [rf,~] = TRAPS_flip(acqP.flipref,(acqP.nrep)*acqP.necho,k0eff,'opt',2,acqP.flipref,flipend,[k0eff k0eff k0eff acqP.necho]);
+        rf(1)=(180+acqP.flipref)/2;
+    end
+
+    acqP.flip=rf(1:acqP.nrep*acqP.necho); %acqP.pow=(90+sum(rf.^2))/(90+sum((0*rf+180).^2));
+
+
     if(strcmp(acqP.PEtype,'linear')), acqP.PEind=acqP.necho-(mod(acqP.nTE-1+(acqP.necho-[1:acqP.necho]),acqP.necho)); end
     if(strcmp(acqP.PEtype,'centric'))
         acqP.PEind=zeros([1 acqP.necho]);
@@ -535,10 +586,10 @@ for kseq=1:nseq
             rfex.phaseOffset=rfex_phase-2*pi*rfex.freqOffset*mr.calcRfCenter(rfex); % align the phase for off-center slices
             rfref.phaseOffset=rfref_phase-2*pi*rfref.freqOffset*mr.calcRfCenter(rfref); % dito
             rfref.signal=refenvelope;
-            % phaseOffset is moved into echo loop
+            % phaseOffset is moved into echo loopGRspoi_x
 
 
-            if(strcmp(fatsat,'on')), seq.addBlock(rf_fs,gz_fs); end
+            if(strcmp(fatsat,'off')), seq.addBlock(rf_fs,gz_fs); end
             if(strcmp(fatsat,'no')), seq.addBlock(gz_fs); end
 
             if(strcmp(T2prep,'on'))
@@ -546,16 +597,13 @@ for kseq=1:nseq
                 seq.addBlock(GS2,rfex);
                 seq.addBlock(GS3p1);
                 seq.addBlock(GS3p2,GRpre_s);
-                seq.addBlock(delayTE1);
-                seq.addBlock(GS7p1,GRspoi_x,GRspoi_y);
+                seq.addBlock(delayTE1,GDx,GDy,GDs);
+                seq.addBlock(GS7p1,GRspoi_y);
                 seq.addBlock(GS4,rfref);
-                %seq.addBlock(GS5p1,GRspoi_x,GRspoi_y);
-                %seq.addBlock(GS5p1,GRspoi_y);
+
                 seq.addBlock(GS5p1);
-                seq.addBlock(delayTE2);
-                %seq.addBlock(GRref);
-                %              seq.addBlock(GS7);
-            else
+                seq.addBlock(delayTE2,GDxr,GDyr,GDsr);
+                            else
                 seq.addBlock(GS1);
                 seq.addBlock(GS2,rfex);
                 seq.addBlock(GS3,GRpre);
@@ -590,7 +638,7 @@ for kseq=1:nseq
                 else
                     %% initial gradient
                     segS.tSp=GSspr.riseTime+GSspr.flatTime+GSspr.fallTime+seg.i1(k)*system.gradRasterTime;
-                    if((m==1)&&strcmp(T2prep,'on')), kBegin1=[-segP.GXfac*spiral.kStart+dKA(k,1) -segP.GYfac*spiral.kStart];
+                    if((m==1)&&strcmp(T2prep,'on')), kBegin1=[-spiral.kStart+dKA(k,1) -spiral.kStart];
                     else
                         kBegin1=[-spiral.kStart+dKA(k,1) 0];
                     end
@@ -638,7 +686,7 @@ for kseq=1:nseq
                     Gtot=[GBegin(1:end,:); -Gsp(nkseg1:-1:seg.ikseg(k,1),:); Gsp(seg.ikseg(k,1)+1:seg.ikseg(k,2),:); GEnd(1:end,:);[0 0]];
                 else
                     if((k==1)&&strcmp(initmode,'outin'))
-                        Gtot(:,1)=[GEnd(end:-1:1,1); Gsp(seg.ikseg(k,2):-1:seg.ikseg(k,1),1); Gsp(seg.ikseg(k,1)+1:seg.ikseg(k,2),1); GEnd(1:end,1);[0]];
+                        Gtot(:,1)=[GEnd(end:-1:1,1); Gsp(seg.ikseg(k,2):-1:seg.ikseg(k,1),1); Gsp(seg.ikseg(k,1)+1:seg.ikseg(k,2),1); GEnd(1:end,1);0];
                         Gtot(:,2)=[GEnd(end:-1:1,2); Gsp(seg.ikseg(k,2):-1:seg.ikseg(k,1),2); Gsp(seg.ikseg(k,1)+1:seg.ikseg(k,2),2); GEnd(1:end,2);[0]];
                     else
 
@@ -724,16 +772,24 @@ for kseq=1:nseq
                         end
                     end
 
-
-                    if (kex>0)
-                        if ((m==1)&& strcmp(T2prep,'on'))
-                            seq.addBlock(Gspiral_x,Gspiral_y,GS5p2,adc);
+                    if (acqP.nPrep>0)
+                    if (m>acqP.nTE-1)
+                        if (kex>0)
+                            if ((m==1)&& strcmp(T2prep,'on'))
+                                seq.addBlock(Gspiral_x,Gspiral_y,GS5p2,adc);
+                            else
+                                seq.addBlock(Gspiral_x,Gspiral_y,adc);
+                            end
                         else
-                            seq.addBlock(Gspiral_x,Gspiral_y,adc);
+                            seq.addBlock(Gspiral_x,Gspiral_y);
                         end
                     else
                         seq.addBlock(Gspiral_x,Gspiral_y);
                     end
+                    end
+
+
+
                     if(Gsp2_x.shape_dur>GS7.shape_dur)
                         fprintf('\ntrajectory not compatible with sequence parameters. \nChange parameters and/or buy faster/stronger gradients\n');
                         return
@@ -817,7 +873,6 @@ for kseq=1:nseq
     %pn=which('myspiralTSE');
     if(~exist('seqno')), seqno=1; end
     seqname=strcat('ssTSE_',num2str(seqno));
-    %seqname=allname;
     seq.write(strcat(seqname,'.seq'))
     save(strcat('p',seqname),'segmode','spmode','scanmode','accmode','fatsat','T2prep','acq','acqP','seg','segP','spiral','kt','ktraj_adc','system','B0');
     seqno=seqno+1;
@@ -827,10 +882,12 @@ for kseq=1:nseq
     disp(s(1:300))
     %% plot gradients etc
     if(plotflag(6)=='1')
-        fig=seq.plot('TimeRange',[0 0.25],'timeDisp','ms');
-        %fig=seq.plot('TimeRange',[0 acqP.TEprep+acqP.TE+acq.readoutTime+20e-3],'timeDisp','ms');
+        fig=seq.plot('TimeRange',[0 0.1],'timeDisp','ms','stacked',1);
     end
     %
-    
+    %   end     %this end is for generation of multiple individual sequences (seq=mr.Sequence should be inside loop)
 end
+%[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('MP_GPA_K2309_2250V_951A_AS82.asc'); % prisma
+%[pns_ok, pns_n, pns_c, tpns]=seq.calcPNS('MP_GradSys_P034_X60.asc'); % Cima.X PNS
+
 toc
